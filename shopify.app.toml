@@ -1,0 +1,47 @@
+# AdShield AI — Shopify App configuration
+# Run `shopify app config link` to populate client_id and connect this codebase
+# to the app you create in Shopify's Dev Dashboard.
+
+name = "AdShield AI"
+client_id = ""
+application_url = "https://example.invalid"
+embedded = true
+handle = "adshield-ai"
+
+[access_scopes]
+# MVP is read-only: AdShield audits product marketing copy but does not modify it.
+scopes = "read_products"
+
+[auth]
+redirect_urls = [
+  "https://example.invalid/auth/callback",
+  "https://example.invalid/auth/shopify/callback",
+  "https://example.invalid/api/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-07"
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/app/uninstalled"
+topics = ["app/uninstalled"]
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/app/scopes_update"
+topics = ["app/scopes_update"]
+
+# Mandatory privacy-compliance webhooks for public App Store distribution.
+[[webhooks.subscriptions]]
+uri = "/webhooks/customers/data_request"
+compliance_topics = ["customers/data_request"]
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/customers/redact"
+compliance_topics = ["customers/redact"]
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/shop/redact"
+compliance_topics = ["shop/redact"]
+
+[build]
+automatically_update_urls_on_dev = true
