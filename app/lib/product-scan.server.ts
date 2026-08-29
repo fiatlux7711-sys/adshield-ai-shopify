@@ -21,44 +21,151 @@ type AdminClient = {
   graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<any>;
 };
 
-async function fetchProducts(admin: AdminClient, limit: number): Promise<ProductNode[]> {
+/** Shopify's leaky-bucket state, returned on every Admin GraphQL response. */
+type ThrottleStatus = {
+  maximumAvailable?: number;
+  currentlyAvailable?: number;
+  restoreRate?: number;
+};
+type QueryCost = { requestedQueryCost?: number; throttleStatus?: ThrottleStatus };
+
+const PRODUCTS_QUERY = `#graphql
+  query AdShieldProducts($first: Int!, $after: String) {
+    products(first: $first, after: $after, sortKey: UPDATED_AT, reverse: true) {
+      nodes {
+        id
+        title
+        description
+        status
+        tags
+        seo {
+          title
+          description
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }`;
+
+/** Attempts for a single page before the whole scan gives up. */
+const MAX_PAGE_ATTEMPTS = 5;
+const MAX_BACKOFF_MS = 15_000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isThrottleError(errors: unknown): boolean {
+  if (!Array.isArray(errors)) return false;
+  return errors.some((e: any) => {
+    const code = e?.extensions?.code;
+    return code === "THROTTLED" || /throttl/i.test(String(e?.message ?? ""));
+  });
+}
+
+/**
+ * How long to wait before retrying a throttled request.
+ *
+ * Shopify tells us exactly how much budget we need and how fast it refills,
+ * so use that rather than guessing: wait for the deficit to restore. Falls
+ * back to exponential backoff only when the cost extension is absent.
+ */
+function throttleWaitMs(cost: QueryCost | undefined, attempt: number): number {
+  const status = cost?.throttleStatus;
+  const restoreRate = status?.restoreRate ?? 0;
+  const available = status?.currentlyAvailable ?? 0;
+  const requested = cost?.requestedQueryCost ?? 0;
+
+  if (restoreRate > 0 && requested > available) {
+    const seconds = (requested - available) / restoreRate;
+    return Math.min(Math.ceil(seconds * 1000) + 250, MAX_BACKOFF_MS);
+  }
+  return Math.min(1000 * 2 ** (attempt - 1), MAX_BACKOFF_MS);
+}
+
+/**
+ * Slows down *before* hitting the limit. Without this the pager drains the
+ * bucket and then thrashes against the throttle for every remaining page.
+ */
+async function pace(cost: QueryCost | undefined): Promise<void> {
+  const status = cost?.throttleStatus;
+  const restoreRate = status?.restoreRate ?? 0;
+  const available = status?.currentlyAvailable ?? 0;
+  const nextCost = cost?.requestedQueryCost ?? 0;
+  if (restoreRate <= 0 || nextCost <= 0) return;
+
+  // Keep a little headroom so the next page does not land exactly at empty.
+  const target = nextCost * 1.5;
+  if (available >= target) return;
+
+  const waitMs = Math.min(Math.ceil(((target - available) / restoreRate) * 1000), MAX_BACKOFF_MS);
+  if (waitMs > 0) await sleep(waitMs);
+}
+
+/**
+ * Runs one page, absorbing throttling internally so a rate limit costs a
+ * short wait rather than the whole scan. Non-throttle GraphQL errors are
+ * still fatal — they are not transient and retrying would just repeat them.
+ */
+async function fetchPage(
+  admin: AdminClient,
+  variables: { first: number; after: string | null },
+  shop: string,
+): Promise<{ connection: ProductConnection | undefined; cost: QueryCost | undefined }> {
+  for (let attempt = 1; ; attempt += 1) {
+    let json: any;
+    try {
+      const response = await admin.graphql(PRODUCTS_QUERY, { variables });
+      json = await response.json();
+    } catch (error) {
+      // Some client versions throw on throttling instead of returning errors.
+      if (attempt < MAX_PAGE_ATTEMPTS && /throttl/i.test(String((error as Error)?.message))) {
+        const waitMs = Math.min(1000 * 2 ** (attempt - 1), MAX_BACKOFF_MS);
+        logger.warn("scan.throttled", { shop, attempt, waitMs, source: "exception" });
+        await sleep(waitMs);
+        continue;
+      }
+      throw error;
+    }
+
+    const cost = json.extensions?.cost as QueryCost | undefined;
+
+    if (json.errors?.length) {
+      if (isThrottleError(json.errors) && attempt < MAX_PAGE_ATTEMPTS) {
+        const waitMs = throttleWaitMs(cost, attempt);
+        logger.warn("scan.throttled", {
+          shop,
+          attempt,
+          waitMs,
+          available: cost?.throttleStatus?.currentlyAvailable,
+          requested: cost?.requestedQueryCost,
+        });
+        await sleep(waitMs);
+        continue;
+      }
+      throw new Error(`Shopify GraphQL error: ${JSON.stringify(json.errors)}`);
+    }
+
+    return { connection: json.data?.products as ProductConnection | undefined, cost };
+  }
+}
+
+async function fetchProducts(admin: AdminClient, limit: number, shop: string): Promise<ProductNode[]> {
   const products: ProductNode[] = [];
   let after: string | null = null;
 
   while (products.length < limit) {
     const first = Math.min(50, limit - products.length);
-    const response = await admin.graphql(
-      `#graphql
-        query AdShieldProducts($first: Int!, $after: String) {
-          products(first: $first, after: $after, sortKey: UPDATED_AT, reverse: true) {
-            nodes {
-              id
-              title
-              description
-              status
-              tags
-              seo {
-                title
-                description
-              }
-            }
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-          }
-        }`,
-      { variables: { first, after } },
-    );
-
-    const json = await response.json();
-    if (json.errors?.length) throw new Error(`Shopify GraphQL error: ${JSON.stringify(json.errors)}`);
-    const connection = json.data?.products as ProductConnection | undefined;
+    const { connection, cost } = await fetchPage(admin, { first, after }, shop);
     if (!connection) break;
 
     products.push(...connection.nodes);
     if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) break;
     after = connection.pageInfo.endCursor;
+
+    // Only pace when there is another page to fetch.
+    await pace(cost);
   }
 
   return products;
@@ -107,7 +214,7 @@ export async function processAuditRun(admin: AdminClient, shop: string, runId: s
   const run = { id: runId };
 
   try {
-    const products = await fetchProducts(admin, limit);
+    const products = await fetchProducts(admin, limit, shop);
     const preliminary = products.map((product) => {
       const text = productText(product);
       const base = auditText(text);

@@ -150,7 +150,9 @@ describe("processAuditRun", () => {
     const { processAuditRun } = await import("./product-scan.server");
     const admin = {
       graphql: vi.fn(async () => ({
-        json: async () => ({ errors: [{ message: "Throttled" }] }),
+        // A schema error, not a throttle — throttling is retried and is
+        // covered separately in product-scan.throttle.test.ts.
+        json: async () => ({ errors: [{ message: "Field 'bogus' doesn't exist" }] }),
       })),
     };
 
