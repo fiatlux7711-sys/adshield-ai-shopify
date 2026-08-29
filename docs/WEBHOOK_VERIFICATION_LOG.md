@@ -20,11 +20,11 @@ topic, shop, status, and outcome are enough evidence.
 
 | # | Timestamp | Topic | Source | HMAC | Result | Notes |
 | - | --- | --- | --- | --- | --- | --- |
-| 1 | | `app/uninstalled` | synthetic | valid | | |
-| 2 | | `app/scopes_update` | synthetic | valid | | |
-| 3 | | `customers/data_request` | synthetic | valid | | |
-| 4 | | `customers/redact` | synthetic | valid | | |
-| 5 | | `shop/redact` | synthetic | valid | | **destroys this shop's audit history** — confirm you want that before running |
+| 1 | 2026-08-29 (user-reported) | `app/uninstalled` | synthetic | valid | 200, no errors | |
+| 2 | 2026-08-29 (user-reported) | `app/scopes_update` | synthetic | valid | 200, no errors | |
+| 3 | 2026-08-29 (user-reported) | `customers/data_request` | synthetic | valid | 200, no errors | |
+| 4 | 2026-08-29 (user-reported) | `customers/redact` | synthetic | valid | 200, no errors | |
+| 5 | 2026-08-29 (user-reported) | `shop/redact` | synthetic | valid | 200, no errors | **this deleted the milestone's audit history for this shop** — see note below |
 
 ## Invalid HMAC (already verified in this session, recorded here for the same log)
 
@@ -58,7 +58,7 @@ for it here — the synthetic trigger (row 5) is the coverage for this gate.
 
 | Requirement | Evidence row(s) | Status |
 | --- | --- | --- |
-| Synthetic webhook, valid HMAC accepted | 1–5 | ⬜ |
+| Synthetic webhook, valid HMAC accepted | 1–5 | ✅ (user-reported: all five, 200, no errors) |
 | Invalid HMAC rejected | 6 | ✅ (verified this session) |
 | Duplicate delivery does not corrupt state | 7 | ⬜ |
 | Real Shopify-delivered `app/uninstalled` received | 8 | ⬜ |
