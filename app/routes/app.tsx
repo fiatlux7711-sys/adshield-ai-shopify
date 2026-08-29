@@ -20,6 +20,7 @@ export default function App() {
         </a>
         <a href="/app/history">Audit history</a>
         <a href="/app/settings">Settings</a>
+        <a href="/support" target="_blank" rel="noopener noreferrer">Support</a>
       </NavMenu>
       <Outlet />
     </AppProvider>

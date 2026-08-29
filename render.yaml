@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: adshield-ai
+    runtime: node
+    plan: 0.5c-512mb
+    buildCommand: npm ci && npm run db:check-pg && npm run db:generate:pg && npm run build
+    preDeployCommand: npx prisma db push --schema prisma/schema.postgresql.prisma
+    startCommand: npm run start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.5
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: adshield-ai-db
+          property: connectionString
+      - key: SCOPES
+        value: read_products
+      - key: ADSHIELD_SCAN_LIMIT
+        value: "50"
+      - key: ADSHIELD_AI_ENABLED
+        value: "false"
+      - key: SHOPIFY_API_KEY
+        sync: false
+      - key: SHOPIFY_API_SECRET
+        sync: false
+      - key: SHOPIFY_APP_URL
+        sync: false
+      - key: ADSHIELD_LEGAL_OWNER
+        sync: false
+      - key: ADSHIELD_SUPPORT_EMAIL
+        sync: false
+      - key: ADSHIELD_MAILING_ADDRESS
+        sync: false
+
+databases:
+  - name: adshield-ai-db
+    plan: 0.1c-256mb
+    databaseName: adshield
+    user: adshield
