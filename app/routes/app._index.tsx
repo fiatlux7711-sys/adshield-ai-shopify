@@ -47,7 +47,7 @@ export default function Dashboard() {
     <s-page heading="AdShield AI">
       <s-section>
         <s-stack direction="inline" gap="base">
-          <img src="/adshield-ai-logo.png" alt="AdShield AI" width="72" height="72" style={{ borderRadius: 16 }} />
+          <img src="/adshield-ai-logo.jpg" alt="AdShield AI" width="72" height="72" style={{ borderRadius: 16 }} />
           <s-stack direction="block" gap="small">
             <s-heading>Marketing compliance risk screening for {shop}</s-heading>
             <s-paragraph>

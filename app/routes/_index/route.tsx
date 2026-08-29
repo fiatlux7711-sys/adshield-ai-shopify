@@ -14,7 +14,7 @@ export default function Index() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <img className={styles.logo} src="/adshield-ai-logo.png" alt="AdShield AI" />
+        <img className={styles.logo} src="/adshield-ai-logo.jpg" alt="AdShield AI" />
         <h1 className={styles.heading}>Catch risky marketing claims before they become expensive.</h1>
         <p className={styles.text}>AdShield AI scans Shopify product copy for advertising-compliance risk and gives merchants a prioritized review list.</p>
         {showForm && (

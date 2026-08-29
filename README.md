@@ -15,7 +15,7 @@ A read-only embedded Shopify app that scans product marketing copy for advertisi
 - Optional AI enhancement through Vercel AI Gateway using `spacexai/grok-4.6`
 - Mandatory Shopify privacy-compliance webhook endpoints
 - App-uninstalled and scope-update webhook handlers
-- AdShield AI logo included in `/public/adshield-ai-logo.png`
+- AdShield AI logo included in `/public/adshield-ai-logo.jpg`
 - Read-only MVP: the app never edits merchant content automatically
 
 ## Important product positioning
