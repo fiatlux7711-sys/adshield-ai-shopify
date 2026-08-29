@@ -3,7 +3,8 @@ import { Form, redirect, useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { runProductAudit } from "../lib/product-scan.server";
+import { createQueuedAuditRun } from "../lib/product-scan.server";
+import { enqueueAuditRun } from "../lib/audit-queue.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -22,11 +23,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const form = await request.formData();
   if (form.get("intent") !== "scan") return null;
 
-  const run = await runProductAudit(admin, session.shop);
+  // Enqueue and redirect immediately — the scan itself runs in the background
+  // so a large catalog never holds this request open (handoff §16).
+  const run = await createQueuedAuditRun(session.shop);
+  enqueueAuditRun(run.id, session.shop);
   return redirect(`/app/audit/${run.id}`);
 };
 

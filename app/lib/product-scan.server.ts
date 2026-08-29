@@ -1,6 +1,7 @@
 import db from "../db.server";
 import { aiAuditProducts } from "./ai-audit.server";
 import { auditText, mergeIssues, scoreIssues, stripHtml } from "./compliance-rules.server";
+import { logger, merchantSafeError } from "./logger.server";
 
 type ProductNode = {
   id: string;
@@ -73,11 +74,37 @@ function productText(product: ProductNode): string {
   ].join("\n");
 }
 
-export async function runProductAudit(admin: AdminClient, shop: string) {
+export function resolveScanLimit(): number {
   const requested = Number(process.env.ADSHIELD_SCAN_LIMIT || 250);
-  const limit = Number.isFinite(requested) ? Math.max(1, Math.min(requested, 1000)) : 250;
+  return Number.isFinite(requested) ? Math.max(1, Math.min(requested, 1000)) : 250;
+}
 
-  const run = await db.auditRun.create({ data: { shop, status: "RUNNING" } });
+/**
+ * Creates the audit run in QUEUED state and returns immediately so the web
+ * request is never held open for a catalog scan (handoff §16). The actual
+ * work is performed later by processAuditRun, driven by the queue.
+ */
+export async function createQueuedAuditRun(shop: string) {
+  const run = await db.auditRun.create({ data: { shop, status: "QUEUED" } });
+  logger.info("audit.queued", { runId: run.id, shop });
+  return run;
+}
+
+/**
+ * Executes a queued audit run. Safe to call only for a run whose id and shop
+ * are already known-good; the caller is responsible for shop scoping.
+ */
+export async function processAuditRun(admin: AdminClient, shop: string, runId: string) {
+  const limit = resolveScanLimit();
+  const startedAt = Date.now();
+
+  await db.auditRun.update({
+    where: { id: runId },
+    data: { status: "RUNNING", startedAt: new Date() },
+  });
+  logger.info("audit.started", { runId, shop, limit });
+
+  const run = { id: runId };
 
   try {
     const products = await fetchProducts(admin, limit);
@@ -93,6 +120,13 @@ export async function runProductAudit(admin: AdminClient, shop: string) {
       .slice(0, 20)
       .map((p) => ({ resourceId: p.product.id, title: p.product.title, text: p.text }));
 
+    // Record the denominator as soon as it is known so the in-progress UI can
+    // show "n of N" rather than an unbounded spinner.
+    await db.auditRun.update({
+      where: { id: run.id },
+      data: { totalItems: products.length },
+    });
+
     const aiMap = await aiAuditProducts(aiCandidates);
 
     let critical = 0;
@@ -101,6 +135,7 @@ export async function runProductAudit(admin: AdminClient, shop: string) {
     let low = 0;
     let flaggedItems = 0;
     let totalRisk = 0;
+    let processed = 0;
 
     for (const entry of preliminary) {
       const aiIssues = aiMap.get(entry.product.id) || [];
@@ -127,16 +162,27 @@ export async function runProductAudit(admin: AdminClient, shop: string) {
           issuesJson: JSON.stringify(issues),
         },
       });
+
+      // Results are persisted incrementally, so a partially complete run still
+      // shows real findings and a crash never discards everything scored so far.
+      processed += 1;
+      if (processed % 25 === 0 || processed === preliminary.length) {
+        await db.auditRun.update({
+          where: { id: run.id },
+          data: { processedItems: processed },
+        });
+      }
     }
 
     const avgRisk = products.length ? Math.round(totalRisk / products.length) : 0;
     const overallScore = Math.max(0, 100 - avgRisk);
 
-    return await db.auditRun.update({
+    const completed = await db.auditRun.update({
       where: { id: run.id },
       data: {
         status: "COMPLETE",
         totalItems: products.length,
+        processedItems: processed,
         flaggedItems,
         critical,
         high,
@@ -147,10 +193,28 @@ export async function runProductAudit(admin: AdminClient, shop: string) {
         completedAt: new Date(),
       },
     });
+
+    logger.info("audit.completed", {
+      runId: run.id,
+      shop,
+      totalItems: products.length,
+      flaggedItems,
+      overallScore,
+      aiEnhanced: aiMap.size > 0,
+      durationMs: Date.now() - startedAt,
+    });
+
+    return completed;
   } catch (error) {
+    // The raw error may carry GraphQL internals; persist only a safe summary.
+    logger.error("audit.failed", { runId: run.id, shop, error, durationMs: Date.now() - startedAt });
     await db.auditRun.update({
       where: { id: run.id },
-      data: { status: "FAILED", completedAt: new Date() },
+      data: {
+        status: "FAILED",
+        errorMessage: merchantSafeError(error),
+        completedAt: new Date(),
+      },
     });
     throw error;
   }

@@ -12,6 +12,9 @@ type StoredAuditRun = {
   low: number;
   overallScore: number;
   aiEnhanced: boolean;
+  processedItems: number;
+  errorMessage: string | null;
+  startedAt: Date | null;
   completedAt: Date | null;
 };
 
@@ -38,8 +41,9 @@ vi.mock("../db.server", () => {
           const run: StoredAuditRun = {
             id: `run-${nextId++}`,
             shop: data.shop,
-            status: data.status ?? "RUNNING",
+            status: data.status ?? "QUEUED",
             totalItems: 0,
+            processedItems: 0,
             flaggedItems: 0,
             critical: 0,
             high: 0,
@@ -47,6 +51,8 @@ vi.mock("../db.server", () => {
             low: 0,
             overallScore: 100,
             aiEnhanced: false,
+            errorMessage: null,
+            startedAt: null,
             completedAt: null,
           };
           auditRuns.push(run);
@@ -95,7 +101,14 @@ function product(id: string, title: string, description = "") {
   return { id, title, description, status: "ACTIVE", tags: [], seo: null };
 }
 
-describe("runProductAudit", () => {
+/** Creates the QUEUED run a real enqueue would have created, and returns its id. */
+async function seedRun(shop: string): Promise<string> {
+  const { createQueuedAuditRun } = await import("./product-scan.server");
+  const run = await createQueuedAuditRun(shop);
+  return run.id;
+}
+
+describe("processAuditRun", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     auditRuns = [];
@@ -106,13 +119,13 @@ describe("runProductAudit", () => {
   });
 
   it("paginates through multiple pages up to the requested limit", async () => {
-    const { runProductAudit } = await import("./product-scan.server");
+    const { processAuditRun } = await import("./product-scan.server");
     const admin = makeAdmin([
       { nodes: [product("1", "A"), product("2", "B")], hasNextPage: true, endCursor: "c1" },
       { nodes: [product("3", "C")], hasNextPage: false },
     ]);
 
-    const run = await runProductAudit(admin as any, "shop-a.myshopify.com");
+    const run = await processAuditRun(admin as any, "shop-a.myshopify.com", await seedRun("shop-a.myshopify.com"));
 
     expect(admin.graphql).toHaveBeenCalledTimes(2);
     expect(run.totalItems).toBe(3);
@@ -121,39 +134,39 @@ describe("runProductAudit", () => {
 
   it("stops paginating once the configured scan limit is reached", async () => {
     process.env.ADSHIELD_SCAN_LIMIT = "2";
-    const { runProductAudit } = await import("./product-scan.server");
+    const { processAuditRun } = await import("./product-scan.server");
     const admin = makeAdmin([
       { nodes: [product("1", "A"), product("2", "B")], hasNextPage: true, endCursor: "c1" },
       { nodes: [product("3", "C")], hasNextPage: false },
     ]);
 
-    const run = await runProductAudit(admin as any, "shop-a.myshopify.com");
+    const run = await processAuditRun(admin as any, "shop-a.myshopify.com", await seedRun("shop-a.myshopify.com"));
 
     expect(admin.graphql).toHaveBeenCalledTimes(1);
     expect(run.totalItems).toBe(2);
   });
 
   it("marks the run FAILED and rethrows on a GraphQL error, without swallowing it", async () => {
-    const { runProductAudit } = await import("./product-scan.server");
+    const { processAuditRun } = await import("./product-scan.server");
     const admin = {
       graphql: vi.fn(async () => ({
         json: async () => ({ errors: [{ message: "Throttled" }] }),
       })),
     };
 
-    await expect(runProductAudit(admin as any, "shop-a.myshopify.com")).rejects.toThrow(
+    await expect(processAuditRun(admin as any, "shop-a.myshopify.com", await seedRun("shop-a.myshopify.com"))).rejects.toThrow(
       /Shopify GraphQL error/,
     );
     expect(auditRuns[0].status).toBe("FAILED");
   });
 
   it("tags every created run and item with the shop passed in (cross-shop isolation)", async () => {
-    const { runProductAudit } = await import("./product-scan.server");
+    const { processAuditRun } = await import("./product-scan.server");
     const adminA = makeAdmin([{ nodes: [product("1", "A")], hasNextPage: false }]);
     const adminB = makeAdmin([{ nodes: [product("2", "B")], hasNextPage: false }]);
 
-    await runProductAudit(adminA as any, "shop-a.myshopify.com");
-    await runProductAudit(adminB as any, "shop-b.myshopify.com");
+    await processAuditRun(adminA as any, "shop-a.myshopify.com", await seedRun("shop-a.myshopify.com"));
+    await processAuditRun(adminB as any, "shop-b.myshopify.com", await seedRun("shop-b.myshopify.com"));
 
     expect(auditRuns.map((r) => r.shop)).toEqual([
       "shop-a.myshopify.com",
@@ -165,13 +178,13 @@ describe("runProductAudit", () => {
   });
 
   it("only sends the top 20 highest-risk products to AI review", async () => {
-    const { runProductAudit } = await import("./product-scan.server");
+    const { processAuditRun } = await import("./product-scan.server");
     const nodes = Array.from({ length: 25 }, (_, i) =>
       product(`${i}`, `Product ${i}`, "This is 100% guaranteed to cure your migraine."),
     );
     const admin = makeAdmin([{ nodes, hasNextPage: false }]);
 
-    await runProductAudit(admin as any, "shop-a.myshopify.com");
+    await processAuditRun(admin as any, "shop-a.myshopify.com", await seedRun("shop-a.myshopify.com"));
 
     expect(aiAuditProducts).toHaveBeenCalledTimes(1);
     const candidates = aiAuditProducts.mock.calls[0][0] as unknown[];
@@ -179,10 +192,10 @@ describe("runProductAudit", () => {
   });
 
   it("does not send AI candidates for a clean catalog (riskScore 0)", async () => {
-    const { runProductAudit } = await import("./product-scan.server");
+    const { processAuditRun } = await import("./product-scan.server");
     const admin = makeAdmin([{ nodes: [product("1", "Clean product", "Just a nice mug.")], hasNextPage: false }]);
 
-    await runProductAudit(admin as any, "shop-a.myshopify.com");
+    await processAuditRun(admin as any, "shop-a.myshopify.com", await seedRun("shop-a.myshopify.com"));
 
     const candidates = aiAuditProducts.mock.calls[0][0] as unknown[];
     expect(candidates).toHaveLength(0);
@@ -190,12 +203,12 @@ describe("runProductAudit", () => {
 
   it("still completes the audit when the AI layer is unavailable (rule-only fallback)", async () => {
     aiAuditProducts.mockResolvedValue(new Map());
-    const { runProductAudit } = await import("./product-scan.server");
+    const { processAuditRun } = await import("./product-scan.server");
     const admin = makeAdmin([
       { nodes: [product("1", "Risky", "100% guaranteed to cure your pain.")], hasNextPage: false },
     ]);
 
-    const run = await runProductAudit(admin as any, "shop-a.myshopify.com");
+    const run = await processAuditRun(admin as any, "shop-a.myshopify.com", await seedRun("shop-a.myshopify.com"));
 
     expect(run.status).toBe("COMPLETE");
     expect(run.aiEnhanced).toBe(false);

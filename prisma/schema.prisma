@@ -38,8 +38,11 @@ model ShopInstallation {
 model AuditRun {
   id            String      @id @default(cuid())
   shop          String
-  status        String      @default("RUNNING")
+  // QUEUED -> RUNNING -> COMPLETE | FAILED
+  status        String      @default("QUEUED")
   totalItems    Int         @default(0)
+  // Products scored so far. Drives the in-progress UI while status is RUNNING.
+  processedItems Int        @default(0)
   flaggedItems  Int         @default(0)
   critical      Int         @default(0)
   high          Int         @default(0)
@@ -47,11 +50,15 @@ model AuditRun {
   low           Int         @default(0)
   overallScore  Int         @default(100)
   aiEnhanced    Boolean     @default(false)
+  // Merchant-safe failure summary. Never store raw exception text or tokens.
+  errorMessage  String?
   createdAt     DateTime    @default(now())
+  startedAt     DateTime?
   completedAt   DateTime?
   items         AuditItem[]
 
   @@index([shop, createdAt])
+  @@index([status])
 }
 
 model AuditItem {

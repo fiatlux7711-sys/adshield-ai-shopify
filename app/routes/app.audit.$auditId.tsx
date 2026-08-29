@@ -1,5 +1,6 @@
+import { useEffect } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import type { ComplianceIssue } from "../lib/compliance-rules.server";
@@ -23,6 +24,67 @@ const badgeTone = (severity: string): "critical" | "warning" | "info" | "success
 
 export default function AuditReport() {
   const { run } = useLoaderData<typeof loader>();
+  const revalidator = useRevalidator();
+  const inFlight = run.status === "QUEUED" || run.status === "RUNNING";
+
+  // Poll while the background scan is still working. Stops as soon as the run
+  // reaches a terminal state so a finished report does not keep refetching.
+  useEffect(() => {
+    if (!inFlight) return;
+    const id = setInterval(() => {
+      if (revalidator.state === "idle") revalidator.revalidate();
+    }, 2000);
+    return () => clearInterval(id);
+  }, [inFlight, revalidator]);
+
+  if (inFlight) {
+    return (
+      <s-page heading="Audit in progress">
+        <s-link href="/app/history">Audit history</s-link>
+        <s-section heading="Scanning your catalogue">
+          <s-stack direction="block" gap="base">
+            <s-spinner accessibilityLabel="Scan in progress" />
+            <s-paragraph>
+              {run.status === "QUEUED"
+                ? "Your scan is queued and will start momentarily."
+                : run.totalItems > 0
+                  ? `Scanned ${run.processedItems} of ${run.totalItems} products…`
+                  : "Loading your product catalogue…"}
+            </s-paragraph>
+            <s-paragraph>
+              This page updates automatically. You can safely leave and come back to it
+              from Audit history.
+            </s-paragraph>
+          </s-stack>
+        </s-section>
+      </s-page>
+    );
+  }
+
+  if (run.status === "FAILED") {
+    return (
+      <s-page heading="Audit did not complete">
+        <s-link href="/app/history">Audit history</s-link>
+        <s-section heading="Something went wrong">
+          <s-banner tone="critical">
+            <s-paragraph>
+              {run.errorMessage ||
+                "The scan could not be completed. Please retry, and contact support if this persists."}
+            </s-paragraph>
+          </s-banner>
+          {run.processedItems > 0 ? (
+            <s-paragraph>
+              {run.processedItems} products were scored before the scan stopped. Their
+              findings are listed below and remain available.
+            </s-paragraph>
+          ) : null}
+          <s-link href="/app">Back to dashboard to retry</s-link>
+        </s-section>
+        {run.items.length > 0 ? <Findings items={run.items} /> : null}
+      </s-page>
+    );
+  }
+
   return (
     <s-page heading={`Audit report · ${run.overallScore}/100`}>
       <s-link href="/app/history">Audit history</s-link>
@@ -37,38 +99,7 @@ export default function AuditReport() {
         <s-paragraph>{run.aiEnhanced ? "Rules + AI review were used." : "Deterministic rule screening was used."}</s-paragraph>
       </s-section>
 
-      <s-section heading="Findings">
-        <s-stack direction="block" gap="base">
-          {run.items.map((item) => {
-            const issues = JSON.parse(item.issuesJson) as ComplianceIssue[];
-            return (
-              <s-box key={item.id} padding="base" borderWidth="base" borderRadius="base">
-                <s-stack direction="block" gap="base">
-                  <s-stack direction="inline" gap="base">
-                    <s-heading>{item.resourceTitle}</s-heading>
-                    <s-badge tone={badgeTone(item.severity)}>{item.severity}</s-badge>
-                  </s-stack>
-                  {issues.length === 0 ? (
-                    <s-paragraph>No issues detected by the current checks.</s-paragraph>
-                  ) : (
-                    issues.map((issue, index) => (
-                      <s-box key={`${issue.category}-${index}`} padding="base" background="subdued" borderRadius="base">
-                        <s-stack direction="block" gap="small">
-                          <s-heading>{issue.title}</s-heading>
-                          <s-paragraph><strong>Evidence:</strong> “{issue.evidence}”</s-paragraph>
-                          <s-paragraph>{issue.explanation}</s-paragraph>
-                          <s-paragraph><strong>Recommended action:</strong> {issue.suggestion}</s-paragraph>
-                          <s-paragraph>Source: {issue.source}</s-paragraph>
-                        </s-stack>
-                      </s-box>
-                    ))
-                  )}
-                </s-stack>
-              </s-box>
-            );
-          })}
-        </s-stack>
-      </s-section>
+      <Findings items={run.items} />
 
       <s-section slot="aside" heading="Important">
         <s-paragraph>
@@ -76,5 +107,49 @@ export default function AuditReport() {
         </s-paragraph>
       </s-section>
     </s-page>
+  );
+}
+
+type FindingItem = {
+  id: string;
+  resourceTitle: string;
+  severity: string;
+  issuesJson: string;
+};
+
+function Findings({ items }: { items: FindingItem[] }) {
+  return (
+    <s-section heading="Findings">
+      <s-stack direction="block" gap="base">
+        {items.map((item) => {
+          const issues = JSON.parse(item.issuesJson) as ComplianceIssue[];
+          return (
+            <s-box key={item.id} padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="base">
+                <s-stack direction="inline" gap="base">
+                  <s-heading>{item.resourceTitle}</s-heading>
+                  <s-badge tone={badgeTone(item.severity)}>{item.severity}</s-badge>
+                </s-stack>
+                {issues.length === 0 ? (
+                  <s-paragraph>No issues detected by the current checks.</s-paragraph>
+                ) : (
+                  issues.map((issue, index) => (
+                    <s-box key={`${issue.category}-${index}`} padding="base" background="subdued" borderRadius="base">
+                      <s-stack direction="block" gap="small">
+                        <s-heading>{issue.title}</s-heading>
+                        <s-paragraph><strong>Evidence:</strong> “{issue.evidence}”</s-paragraph>
+                        <s-paragraph>{issue.explanation}</s-paragraph>
+                        <s-paragraph><strong>Recommended action:</strong> {issue.suggestion}</s-paragraph>
+                        <s-paragraph>Source: {issue.source}</s-paragraph>
+                      </s-stack>
+                    </s-box>
+                  ))
+                )}
+              </s-stack>
+            </s-box>
+          );
+        })}
+      </s-stack>
+    </s-section>
   );
 }

@@ -6,6 +6,7 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { configureAuditQueue } from "./lib/audit-queue.server";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -22,6 +23,14 @@ const shopify = shopifyApp({
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),
+});
+
+// Wire the background audit worker to Shopify's stored offline session, so a
+// queued scan resolves its own Admin client rather than borrowing a
+// request-scoped one that may outlive the request that created it.
+configureAuditQueue(async (shop: string) => {
+  const { admin } = await shopify.unauthenticated.admin(shop);
+  return admin;
 });
 
 export default shopify;
