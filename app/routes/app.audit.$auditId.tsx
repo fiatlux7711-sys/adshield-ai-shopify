@@ -1,9 +1,16 @@
 import { useEffect } from "react";
-import type { LoaderFunctionArgs } from "react-router";
+import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { useLoaderData, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import type { ComplianceIssue } from "../lib/compliance-rules.server";
+
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+  const status = data?.run.status;
+  if (status === "QUEUED" || status === "RUNNING") return [{ title: "Audit in progress · AdShield AI" }];
+  if (status === "FAILED") return [{ title: "Audit failed · AdShield AI" }];
+  return [{ title: `Audit report ${data?.run.overallScore ?? ""}/100 · AdShield AI` }];
+};
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -44,13 +51,20 @@ export default function AuditReport() {
         <s-section heading="Scanning your catalogue">
           <s-stack direction="block" gap="base">
             <s-spinner accessibilityLabel="Scan in progress" />
-            <s-paragraph>
-              {run.status === "QUEUED"
-                ? "Your scan is queued and will start momentarily."
-                : run.totalItems > 0
-                  ? `Scanned ${run.processedItems} of ${run.totalItems} products…`
-                  : "Loading your product catalogue…"}
-            </s-paragraph>
+            {/*
+              The page polls and swaps this text in place. Without a live
+              region the update is silent to screen readers (WCAG 2.1 AA
+              4.1.3 Status Messages), so progress is announced politely.
+            */}
+            <div role="status" aria-live="polite" aria-atomic="true">
+              <s-paragraph>
+                {run.status === "QUEUED"
+                  ? "Your scan is queued and will start momentarily."
+                  : run.totalItems > 0
+                    ? `Scanned ${run.processedItems} of ${run.totalItems} products…`
+                    : "Loading your product catalogue…"}
+              </s-paragraph>
+            </div>
             <s-paragraph>
               This page updates automatically. You can safely leave and come back to it
               from Audit history.
