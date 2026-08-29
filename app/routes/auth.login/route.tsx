@@ -5,8 +5,13 @@ import { Form, useActionData, useLoaderData } from "react-router";
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => ({ errors: loginErrorMessage(await login(request)) });
-export const action = async ({ request }: ActionFunctionArgs) => ({ errors: loginErrorMessage(await login(request)) });
+export const loader = async ({ request }: LoaderFunctionArgs) => ({
+  errors: loginErrorMessage(await login(request)),
+  apiKey: process.env.SHOPIFY_API_KEY || "",
+});
+export const action = async ({ request }: ActionFunctionArgs) => ({
+  errors: loginErrorMessage(await login(request)),
+});
 
 export default function Auth() {
   const loaderData = useLoaderData<typeof loader>();
@@ -14,7 +19,7 @@ export default function Auth() {
   const [shop, setShop] = useState("");
   const { errors } = actionData || loaderData;
   return (
-    <AppProvider embedded={false}>
+    <AppProvider apiKey={loaderData.apiKey}>
       <s-page>
         <Form method="post">
           <s-section heading="Log in to AdShield AI">
