@@ -1,10 +1,20 @@
 # Milestone 1 — install on the dev store and audit the six test products
 
-This is the first milestone: **AdShield AI installed on a Shopify development
-store and successfully auditing six controlled test products end-to-end.**
+**STATUS: PASSED (user-reported).** The user linked the app, ran
+`shopify app dev`, installed on the development store, and ran the scan. All
+six results matched the table below exactly, including the clean control
+producing zero findings. See `SHOPIFY_BUILD_STATUS.md` for the full record.
+Not independently verified by Claude — no screenshot was received, and Claude
+has no direct access to the store.
 
-Everything in this repo up to this point is verified at the source and test
-level only. Nothing below has been executed against Shopify.
+Getting here also required fixing a real bug the live run surfaced: the
+scanner had no handling for Shopify's GraphQL rate limiting and failed with
+`Shopify GraphQL error: [{"message":"Throttled"}]` on the first attempt. Fixed
+in commit `88966f4` (backs off using Shopify's own cost/restore-rate data,
+keeps pages already fetched on retry).
+
+This document is kept as the runbook for re-running this milestone — a
+reinstall, a second dev store, or after a scanner change.
 
 ## Why this can't be completed from the Claude session
 
@@ -82,17 +92,17 @@ real Shopify GraphQL + persistence path.
 ## Step 5 — acceptance checklist
 
 Install / auth:
-- [ ] App installs successfully
-- [ ] Opens embedded in Shopify Admin
-- [ ] No redirect loop, no iframe/CSP error
-- [ ] Only `read_products` requested
+- [x] App installs successfully (user-reported)
+- [x] Opens embedded in Shopify Admin (user-reported)
+- [ ] No redirect loop, no iframe/CSP error — not explicitly confirmed
+- [ ] Only `read_products` requested — not explicitly confirmed
 
 Audit:
-- [ ] Products 1–5 flagged with the categories and severities above
-- [ ] Product 6 produces **no** issues (no invented findings)
-- [ ] Evidence quotes the merchant's own text
-- [ ] Audit run completes; history persists; detail page renders
-- [ ] Store Readiness Score calculates
+- [x] Products 1–5 flagged with the categories and severities above (user-reported, exact match)
+- [x] Product 6 produces **no** issues (user-reported: "No findings")
+- [ ] Evidence quotes the merchant's own text — not explicitly confirmed (would need the finding detail, not just category/severity)
+- [x] Audit run completes; history persists; detail page renders (user-reported: "worked for 17s", report viewed)
+- [ ] Store Readiness Score calculates — not explicitly confirmed
 
 Webhooks (`shopify app webhook trigger`, plus an uninstall/reinstall cycle):
 - [ ] `app/uninstalled` · `app/scopes_update`

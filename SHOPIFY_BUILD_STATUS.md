@@ -14,7 +14,7 @@ explicitly listed as unverified.
 - [x] `npm install`, `npx prisma generate`, `npx prisma migrate dev` run clean
 - [x] `npm run typecheck` — zero errors
 - [x] `npm run build` — clean client + server build
-- [x] `npm test` — **102/102 passing** across 15 files
+- [x] `npm test` — **107/107 passing** across 17 files
 
 ### Verified against a running server (`npm start` on the built output)
 - [x] `GET /healthz` → `200 {"status":"ok","database":"ok"}`, `cache-control: no-store`
@@ -25,6 +25,31 @@ explicitly listed as unverified.
 ### Verified with axe-core in Chromium (WCAG 2.1 A/AA, 1280px and 360px)
 - [x] Landing page: no violations, no horizontal overflow
 - [ ] Embedded admin pages: **not audited** — needs a real Shopify session
+
+### Dev-store six-product audit — MILESTONE PASSED (user-reported)
+Reported by the user after running `shopify app dev`, installing on the
+AdShield AI development store, and running a real scan. **Not independently
+verified by Claude** — no screenshot was received in this session and Claude
+has no direct access to the store; this is recorded as user-reported
+evidence, not tool-observed evidence.
+
+| Product | Result reported | Expected | Status |
+| --- | --- | --- | --- |
+| Cures back pain | CRITICAL · health_claim | CRITICAL | ✅ |
+| Guaranteed results | HIGH · guarantee_claim | HIGH | ✅ |
+| 100% eco-friendly | HIGH · environmental_claim | HIGH | ✅ |
+| Only 2 left | MEDIUM · scarcity_urgency | MEDIUM | ✅ |
+| Make $5,000/month | CRITICAL · earnings_claim | CRITICAL | ✅ |
+| Stainless steel bottle… | No findings | No findings | ✅ |
+
+This also confirms the GraphQL throttle fix (commit `88966f4`) worked in
+production: the scan completed against a real store after previously failing
+with `Shopify GraphQL error: [{"message":"Throttled"}]`.
+
+These six products were already pinned as an automated regression test in
+`app/lib/acceptance-fixtures.test.ts`, written before this dev-store run. Any
+future change to the compliance rules that reproduces a miss or a false
+positive on these six fails `npm test` immediately.
 
 ## Real bugs found and fixed this session
 
@@ -55,12 +80,13 @@ explicitly listed as unverified.
 
 ## Not verified — requires action outside this session
 
-- [ ] **Linked to the Shopify app.** Blocked: `shopify app config link` needs an
-      interactive browser login. Confirmed empirically — with `--client-id` it
-      still fails at the auth step (`HTTP 403` from the authorization service,
-      no CLI session in this container). No Client ID value can bypass this.
-- [ ] Installed on a development store
-- [ ] End-to-end audit of the six acceptance products against live Shopify data
+- [x] **Linked to the Shopify app** — user completed the interactive browser
+      login outside this session (blocked here: no CLI session in this
+      container, confirmed empirically with `--client-id` still failing at
+      the auth step).
+- [x] Installed on a development store (user-reported)
+- [x] End-to-end audit of the six acceptance products against live Shopify
+      data (user-reported — see table above)
 - [ ] Live webhook delivery (valid HMAC, duplicate delivery, uninstall lifecycle)
 - [ ] Mobile UI in real Shopify admin
 - [ ] Embedded-page accessibility
