@@ -1,17 +1,17 @@
+// GENERATED FILE — DO NOT EDIT BY HAND.
+//
+// Produced from prisma/schema.prisma by scripts/gen-pg-schema.mjs.
+// Edit the models in prisma/schema.prisma, then run: npm run db:gen-pg
+//
+// Production PostgreSQL schema. Used with:
+//   npx prisma migrate deploy --schema prisma/schema.postgresql.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
 
-// LOCAL DEVELOPMENT SCHEMA (SQLite).
-//
-// This file is the single source of truth for the data model. The production
-// PostgreSQL schema is GENERATED from it by scripts/gen-pg-schema.mjs into
-// prisma/schema.postgresql.prisma — edit the models here, never there, then
-// run `npm run db:gen-pg`. CI/`npm test` fails if the two drift.
-//
-// See docs/PRODUCTION_DATABASE.md for the cutover and backup/restore runbook.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

@@ -18,7 +18,12 @@
     "graphql-codegen": "graphql-codegen",
     "typecheck": "react-router typegen && tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:gen-pg": "node scripts/gen-pg-schema.mjs",
+    "db:check-pg": "node scripts/gen-pg-schema.mjs --check",
+    "db:migrate:pg": "prisma migrate deploy --schema prisma/schema.postgresql.prisma",
+    "db:generate:pg": "prisma generate --schema prisma/schema.postgresql.prisma",
+    "licenses": "node scripts/license-inventory.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.16.3",
