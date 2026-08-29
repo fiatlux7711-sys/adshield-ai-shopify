@@ -7,3 +7,7 @@ prisma/dev.sqlite-journal
 build
 .react-router
 .DS_Store
+
+# Shopify CLI local state (project id, dev-store selection). Machine-specific.
+# shopify.app.toml IS committed; this directory is not.
+.shopify
