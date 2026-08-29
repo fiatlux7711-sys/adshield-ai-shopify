@@ -1,9 +1,12 @@
-import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs, MetaFunction } from "react-router";
 import { Form, redirect, useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { runProductAudit } from "../lib/product-scan.server";
+import { createQueuedAuditRun } from "../lib/product-scan.server";
+import { enqueueAuditRun } from "../lib/audit-queue.server";
+
+export const meta: MetaFunction = () => [{ title: "Dashboard · AdShield AI" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -22,11 +25,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const form = await request.formData();
   if (form.get("intent") !== "scan") return null;
 
-  const run = await runProductAudit(admin, session.shop);
+  // Enqueue and redirect immediately — the scan itself runs in the background
+  // so a large catalog never holds this request open (handoff §16).
+  const run = await createQueuedAuditRun(session.shop);
+  enqueueAuditRun(run.id, session.shop);
   return redirect(`/app/audit/${run.id}`);
 };
 
@@ -47,7 +53,7 @@ export default function Dashboard() {
     <s-page heading="AdShield AI">
       <s-section>
         <s-stack direction="inline" gap="base">
-          <img src="/adshield-ai-logo.png" alt="AdShield AI" width="72" height="72" style={{ borderRadius: 16 }} />
+          <img src="/adshield-ai-logo.jpg" alt="AdShield AI" width="72" height="72" style={{ borderRadius: 16 }} />
           <s-stack direction="block" gap="small">
             <s-heading>Marketing compliance risk screening for {shop}</s-heading>
             <s-paragraph>

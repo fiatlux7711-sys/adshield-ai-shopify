@@ -6,7 +6,7 @@
 .form { display: flex; gap: 12px; justify-content: center; align-items: end; flex-wrap: wrap; }
 .label { display: grid; gap: 6px; text-align: left; font-weight: 600; }
 .input { min-width: 290px; padding: 12px 14px; border: 1px solid #c9d5e6; border-radius: 10px; font: inherit; }
-.button { padding: 12px 18px; border: 0; border-radius: 10px; background: #0e72f5; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+.button { padding: 12px 18px; border: 0; border-radius: 10px; background: #0b5ed7; color: white; font: inherit; font-weight: 700; cursor: pointer; }
 .list { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 24px 0 0; margin: 0; text-align: left; }
 .list li { background: white; border: 1px solid #e3e9f2; border-radius: 14px; padding: 18px; line-height: 1.5; }
 @media (max-width: 720px) { .list { grid-template-columns: 1fr; } .input { min-width: 0; width: 100%; } .form { align-items: stretch; } }

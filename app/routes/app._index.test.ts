@@ -11,8 +11,15 @@ const dbMock = {
 };
 vi.mock("../db.server", () => ({ default: dbMock }));
 
-const runProductAudit = vi.fn();
-vi.mock("../lib/product-scan.server", () => ({ runProductAudit: (...args: unknown[]) => runProductAudit(...args) }));
+const createQueuedAuditRun = vi.fn();
+vi.mock("../lib/product-scan.server", () => ({
+  createQueuedAuditRun: (...args: unknown[]) => createQueuedAuditRun(...args),
+}));
+
+const enqueueAuditRun = vi.fn();
+vi.mock("../lib/audit-queue.server", () => ({
+  enqueueAuditRun: (...args: unknown[]) => enqueueAuditRun(...args),
+}));
 
 describe("app/_index (dashboard) route", () => {
   beforeEach(() => {
@@ -43,18 +50,35 @@ describe("app/_index (dashboard) route", () => {
     expect(dbMock.shopInstallation.upsert).not.toHaveBeenCalled();
   });
 
-  it("action runs a scan for the authenticated shop only when intent=scan", async () => {
+  it("action enqueues a scan for the authenticated shop and redirects immediately", async () => {
     authenticateAdmin.mockResolvedValue({ admin: { graphql: vi.fn() }, session: { shop: "shop-a.myshopify.com" } });
-    runProductAudit.mockResolvedValue({ id: "run-1" });
+    createQueuedAuditRun.mockResolvedValue({ id: "run-1" });
 
     const { action } = await import("./app._index");
     const form = new FormData();
     form.set("intent", "scan");
     const response = await action({ request: new Request("https://app.example/app", { method: "POST", body: form }) } as any);
 
-    expect(runProductAudit).toHaveBeenCalledWith(expect.anything(), "shop-a.myshopify.com");
+    expect(createQueuedAuditRun).toHaveBeenCalledWith("shop-a.myshopify.com");
+    expect(enqueueAuditRun).toHaveBeenCalledWith("run-1", "shop-a.myshopify.com");
     expect(response).toBeInstanceOf(Response);
     expect((response as Response).headers.get("Location")).toBe("/app/audit/run-1");
+  });
+
+  it("action does not perform the scan inline, so the request is never held open", async () => {
+    authenticateAdmin.mockResolvedValue({ admin: { graphql: vi.fn() }, session: { shop: "shop-a.myshopify.com" } });
+    createQueuedAuditRun.mockResolvedValue({ id: "run-1" });
+
+    const { action } = await import("./app._index");
+    const form = new FormData();
+    form.set("intent", "scan");
+
+    const started = Date.now();
+    await action({ request: new Request("https://app.example/app", { method: "POST", body: form }) } as any);
+
+    // enqueueAuditRun is fire-and-forget; the action must not await the scan.
+    expect(enqueueAuditRun).toHaveBeenCalledOnce();
+    expect(Date.now() - started).toBeLessThan(500);
   });
 
   it("action is a no-op for any other intent", async () => {
@@ -65,6 +89,7 @@ describe("app/_index (dashboard) route", () => {
     const result = await action({ request: new Request("https://app.example/app", { method: "POST", body: form }) } as any);
 
     expect(result).toBeNull();
-    expect(runProductAudit).not.toHaveBeenCalled();
+    expect(createQueuedAuditRun).not.toHaveBeenCalled();
+    expect(enqueueAuditRun).not.toHaveBeenCalled();
   });
 });

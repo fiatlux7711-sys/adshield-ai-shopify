@@ -15,7 +15,7 @@ A read-only embedded Shopify app that scans product marketing copy for advertisi
 - Optional AI enhancement through Vercel AI Gateway using `spacexai/grok-4.6`
 - Mandatory Shopify privacy-compliance webhook endpoints
 - App-uninstalled and scope-update webhook handlers
-- AdShield AI logo included in `/public/adshield-ai-logo.png`
+- AdShield AI logo included in `/public/adshield-ai-logo.jpg`
 - Read-only MVP: the app never edits merchant content automatically
 
 ## Important product positioning
@@ -26,11 +26,52 @@ AdShield AI is a **risk-screening and workflow tool**. It should never claim tha
 
 1. Install Shopify CLI: `npm install -g @shopify/cli@latest`
 2. Install dependencies: `npm install`
-3. Link the project: `shopify app config link`
-4. Prepare Prisma: `npx prisma generate && npx prisma migrate dev --name init`
-5. Optional AI: copy `.env.example` to `.env` and set `AI_GATEWAY_API_KEY`.
-6. Run: `shopify app dev`
-7. Press `p` in Shopify CLI and install on your development store.
+3. Copy `.env.example` to `.env` and set at least `DATABASE_URL=file:dev.sqlite`
+4. Link the project: `shopify app config link`
+   (requires an interactive browser login — see `docs/DEV_STORE_MILESTONE.md`)
+5. Prepare Prisma: `npx prisma generate && npx prisma migrate dev`
+6. Optional AI: set `AI_GATEWAY_API_KEY` in `.env`
+7. Run: `shopify app dev`, then press `p` and install on your development store
+
+Then work through `docs/DEV_STORE_MILESTONE.md`, which contains the
+six-product acceptance test.
+
+## Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm test` | Vitest suite |
+| `npm run typecheck` | React Router typegen + `tsc --noEmit` |
+| `npm run build` | Production build |
+| `npm run a11y` | axe-core WCAG 2.1 AA audit (needs a running server) |
+| `npm run licenses` | Third-party license inventory |
+| `npm run db:gen-pg` | Regenerate the PostgreSQL schema from the dev schema |
+| `npm run db:check-pg` | Fail if the two schemas have drifted |
+| `npm run db:migrate:pg` | `prisma migrate deploy` against PostgreSQL |
+
+## How a scan runs
+
+Scans run as background jobs. The dashboard action persists a `QUEUED`
+`AuditRun` and returns immediately; an in-process worker
+(`app/lib/audit-queue.server.ts`) performs the scan, writes results
+incrementally, and the report page polls for progress. A web request is never
+held open for a catalogue scan.
+
+The worker is **single-instance only** — jobs are held in memory and do not
+survive a restart. See `docs/PRODUCTION_DATABASE.md` before running more than
+one instance.
+
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| `SHOPIFY_BUILD_STATUS.md` | What is verified, what is not, and how it was verified |
+| `docs/DEV_STORE_MILESTONE.md` | Dev-store install and six-product acceptance test |
+| `docs/PRODUCTION_DATABASE.md` | PostgreSQL cutover, backups, restore drill |
+| `docs/PRICING_PROPOSAL.md` | Pricing options awaiting owner approval |
+| `docs/APP_STORE_LISTING.draft.md` | Listing copy and reviewer instructions |
+| `docs/legal/` | Privacy, Terms, Retention drafts (not counsel-reviewed) |
+| `THIRD_PARTY_LICENSES.md` | Dependency license inventory |
 
 ## Production requirements before App Store submission
 

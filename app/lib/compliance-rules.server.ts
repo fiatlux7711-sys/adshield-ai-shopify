@@ -97,7 +97,18 @@ const RULES: Rule[] = [
     category: "earnings_claim",
     title: "Earnings or financial outcome claim",
     severity: "CRITICAL",
-    patterns: [/\bguaranteed (income|returns?|profit|earnings)\b/gi, /\bget rich\b/gi, /\bpassive income\b/gi, /\bearn \$?\d+[\d,]*(?:\.\d+)?\b/gi],
+    patterns: [
+      /\bguaranteed (income|returns?|profit|earnings)\b/gi,
+      /\bget rich\b/gi,
+      /\bpassive income\b/gi,
+      // "earn 5000", "earn $5,000" — bare amounts only for explicit earning verbs.
+      /\b(earn|earns|earning)\s+(?:up\s+to\s+)?\$?\s?\d[\d,]*(?:\.\d+)?\s*k?\b/gi,
+      // "make $5,000", "making up to $10k" — "make" requires a currency amount,
+      // so ordinary product copy ("makes 2 servings") is not flagged.
+      /\b(make|makes|making)\s+(?:up\s+to\s+)?\$\s?\d[\d,]*(?:\.\d+)?\s*k?\b/gi,
+      // "$5,000/month", "$5000 per month", "$300 a day" — with or without a verb
+      /\$\s?\d[\d,]*(?:\.\d+)?\s*(?:\/|\bper\b|\ba\b|\beach\b)\s*(?:day|week|month|year|mo|yr)\b/gi,
+    ],
     explanation:
       "Earnings and financial-outcome claims can be high risk when typical results, assumptions, and substantiation are unclear.",
     suggestion:

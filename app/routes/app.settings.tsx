@@ -1,6 +1,8 @@
-import type { LoaderFunctionArgs } from "react-router";
+import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
+
+export const meta: MetaFunction = () => [{ title: "Settings · AdShield AI" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
