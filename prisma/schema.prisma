@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model ShopInstallation {
+  shop       String   @id
+  onboarded  Boolean  @default(false)
+  plan       String   @default("FREE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditRun {
+  id            String      @id @default(cuid())
+  shop          String
+  status        String      @default("RUNNING")
+  totalItems    Int         @default(0)
+  flaggedItems  Int         @default(0)
+  critical      Int         @default(0)
+  high          Int         @default(0)
+  medium        Int         @default(0)
+  low           Int         @default(0)
+  overallScore  Int         @default(100)
+  aiEnhanced    Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  completedAt   DateTime?
+  items         AuditItem[]
+
+  @@index([shop, createdAt])
+}
+
+model AuditItem {
+  id            String   @id @default(cuid())
+  auditRunId    String
+  shop          String
+  resourceType  String   @default("PRODUCT")
+  resourceId    String
+  resourceTitle String
+  riskScore     Int      @default(0)
+  severity      String   @default("PASS")
+  issueCount    Int      @default(0)
+  issuesJson    String
+  createdAt     DateTime @default(now())
+  run           AuditRun @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId, severity])
+  @@index([shop, resourceId])
+}
