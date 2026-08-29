@@ -1,2 +1,2 @@
 import { flatRoutes } from "@react-router/fs-routes";
-export default flatRoutes();
+export default flatRoutes({ ignoredRouteFiles: ["**/*.test.{ts,tsx}"] });

@@ -16,7 +16,9 @@
     "setup": "prisma generate && prisma migrate deploy",
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
-    "typecheck": "react-router typegen && tsc --noEmit"
+    "typecheck": "react-router typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@prisma/client": "^6.16.3",
@@ -42,12 +44,18 @@
     "@types/node": "^25.5.2",
     "@types/react": "^18.3.25",
     "@types/react-dom": "^18.3.7",
+    "@vitest/coverage-v8": "^4.1.11",
     "graphql-config": "^5.1.1",
     "prettier": "^3.6.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
   },
   "workspaces": {
-    "packages": ["extensions/*"]
+    "packages": [
+      "extensions/*"
+    ]
   },
-  "trustedDependencies": ["@shopify/plugin-cloudflare"]
+  "trustedDependencies": [
+    "@shopify/plugin-cloudflare"
+  ]
 }
