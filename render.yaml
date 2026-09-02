@@ -4,8 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm ci && npm run db:check-pg && npm run db:generate:pg && npm run build
-    preDeployCommand: npx prisma db push --schema prisma/schema.postgresql.prisma
-    startCommand: npm run start
+    startCommand: npx prisma db push --schema prisma/schema.postgresql.prisma && npm run start
     healthCheckPath: /healthz
     envVars:
       - key: NODE_VERSION
