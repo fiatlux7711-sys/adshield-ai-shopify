@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "2a6c6d5ce2677cb3234760273ba28f53"
-application_url = "https://example.invalid"
+application_url = "https://adshield-ai.onrender.com"
 embedded = true
 name = "AdShield AI"
 handle = "adshield-ai"
@@ -12,9 +12,9 @@ scopes = "read_products"
 
 [auth]
 redirect_urls = [
-  "https://example.invalid/auth/callback",
-  "https://example.invalid/auth/shopify/callback",
-  "https://example.invalid/api/auth/callback"
+  "https://adshield-ai.onrender.com/auth/callback",
+  "https://adshield-ai.onrender.com/auth/shopify/callback",
+  "https://adshield-ai.onrender.com/api/auth/callback"
 ]
 
 [webhooks]
