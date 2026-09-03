@@ -1,48 +1,43 @@
-# AdShield AI — Shopify App configuration
-# Run `shopify app config link` to populate client_id and connect this codebase
-# to the app you create in Shopify's Dev Dashboard.
-
-name = "AdShield AI"
-client_id = ""
-application_url = "https://example.invalid"
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+client_id = "2a6c6d5ce2677cb3234760273ba28f53"
+application_url = "https://adshield-ai.onrender.com"
 embedded = true
+name = "AdShield AI"
 handle = "adshield-ai"
 
 [access_scopes]
-# MVP is read-only: AdShield audits product marketing copy but does not modify it.
 scopes = "read_products"
 
 [auth]
 redirect_urls = [
-  "https://example.invalid/auth/callback",
-  "https://example.invalid/auth/shopify/callback",
-  "https://example.invalid/api/auth/callback"
+  "https://adshield-ai.onrender.com/auth/callback",
+  "https://adshield-ai.onrender.com/auth/shopify/callback",
+  "https://adshield-ai.onrender.com/api/auth/callback"
 ]
 
 [webhooks]
 api_version = "2026-07"
 
-[[webhooks.subscriptions]]
-uri = "/webhooks/app/uninstalled"
-topics = ["app/uninstalled"]
-
-[[webhooks.subscriptions]]
-uri = "/webhooks/app/scopes_update"
-topics = ["app/scopes_update"]
-
-# Mandatory privacy-compliance webhooks for public App Store distribution.
-[[webhooks.subscriptions]]
-uri = "/webhooks/customers/data_request"
-compliance_topics = ["customers/data_request"]
-
-[[webhooks.subscriptions]]
-uri = "/webhooks/customers/redact"
-compliance_topics = ["customers/redact"]
-
-[[webhooks.subscriptions]]
-uri = "/webhooks/shop/redact"
-compliance_topics = ["shop/redact"]
-
 [build]
-automatically_update_urls_on_dev = true
 include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+
+[[webhooks.subscriptions]]
+topics = [ "app/uninstalled" ]
+uri = "/webhooks/app/uninstalled"
+
+[[webhooks.subscriptions]]
+topics = [ "app/scopes_update" ]
+uri = "/webhooks/app/scopes_update"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/data_request" ]
+uri = "/webhooks/customers/data_request"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "customers/redact" ]
+uri = "/webhooks/customers/redact"
+
+[[webhooks.subscriptions]]
+compliance_topics = [ "shop/redact" ]
+uri = "/webhooks/shop/redact"
