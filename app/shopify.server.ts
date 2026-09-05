@@ -8,22 +8,23 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 import { configureAuditQueue } from "./lib/audit-queue.server";
+import { resolveShopifyEnv } from "./env.server";
+
+const env = resolveShopifyEnv();
 
 const shopify = shopifyApp({
-  apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
+  apiKey: env.apiKey,
+  apiSecretKey: env.apiSecretKey,
   apiVersion: ApiVersion.July26,
-  scopes: process.env.SCOPES?.split(","),
-  appUrl: process.env.SHOPIFY_APP_URL || "",
+  scopes: env.scopes,
+  appUrl: env.appUrl,
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   future: {
     expiringOfflineAccessTokens: true,
   },
-  ...(process.env.SHOP_CUSTOM_DOMAIN
-    ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
-    : {}),
+  ...(env.shopCustomDomain ? { customShopDomains: [env.shopCustomDomain] } : {}),
 });
 
 // Wire the background audit worker to Shopify's stored offline session, so a
