@@ -37,6 +37,10 @@ vi.mock("../db.server", () => {
   return {
     default: {
       auditRun: {
+        findFirst: vi.fn(async ({ where }: any) => {
+          const wanted: string[] = where.status.in;
+          return auditRuns.find((r) => r.shop === where.shop && wanted.includes(r.status)) ?? null;
+        }),
         create: vi.fn(async ({ data }: { data: Partial<StoredAuditRun> & { shop: string } }) => {
           const run: StoredAuditRun = {
             id: `run-${nextId++}`,
@@ -104,7 +108,7 @@ function product(id: string, title: string, description = "") {
 /** Creates the QUEUED run a real enqueue would have created, and returns its id. */
 async function seedRun(shop: string): Promise<string> {
   const { createQueuedAuditRun } = await import("./product-scan.server");
-  const run = await createQueuedAuditRun(shop);
+  const { run } = await createQueuedAuditRun(shop);
   return run.id;
 }
 

@@ -147,6 +147,40 @@ describe("cross-shop isolation (real SQLite, real Prisma queries)", () => {
     expect(asOtherShop).toBeNull();
   });
 
+  it("suppresses a duplicate scan for the same shop but never across shops", async () => {
+    const { createQueuedAuditRun, findInFlightAuditRun } = await import("./product-scan.server");
+
+    const first = await createQueuedAuditRun(SHOP_A);
+    expect(first.created).toBe(true);
+
+    // Second submit while the first is still QUEUED: no new row, same run.
+    const second = await createQueuedAuditRun(SHOP_A);
+    expect(second.created).toBe(false);
+    expect(second.run.id).toBe(first.run.id);
+    expect(await db.auditRun.count({ where: { shop: SHOP_A } })).toBe(1);
+
+    // Shop B is unaffected by shop A's in-flight scan.
+    const otherShop = await createQueuedAuditRun(SHOP_B);
+    expect(otherShop.created).toBe(true);
+    expect(await db.auditRun.count({ where: { shop: SHOP_B } })).toBe(1);
+
+    // findInFlightAuditRun is likewise shop-scoped.
+    expect((await findInFlightAuditRun(SHOP_A))!.id).toBe(first.run.id);
+    expect((await findInFlightAuditRun(SHOP_B))!.id).toBe(otherShop.run.id);
+  });
+
+  it("allows a new scan once the previous one reached a terminal state", async () => {
+    const { createQueuedAuditRun } = await import("./product-scan.server");
+
+    const first = await createQueuedAuditRun(SHOP_A);
+    await db.auditRun.update({ where: { id: first.run.id }, data: { status: "COMPLETE" } });
+
+    // A finished scan must not block the merchant from running another.
+    const second = await createQueuedAuditRun(SHOP_A);
+    expect(second.created).toBe(true);
+    expect(second.run.id).not.toBe(first.run.id);
+  });
+
   it("firing shop/redact twice in a row is idempotent — no error, no effect on the second call", async () => {
     await seedShop(SHOP_A);
     authenticateWebhook.mockResolvedValue({ shop: SHOP_A });

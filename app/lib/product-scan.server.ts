@@ -191,10 +191,42 @@ export function resolveScanLimit(): number {
  * request is never held open for a catalog scan (handoff §16). The actual
  * work is performed later by processAuditRun, driven by the queue.
  */
+/**
+ * Returns this shop's currently in-flight audit run, if any.
+ *
+ * Scoped by shop, so one merchant's running scan can never suppress or
+ * surface another merchant's.
+ */
+export async function findInFlightAuditRun(shop: string) {
+  return db.auditRun.findFirst({
+    where: { shop, status: { in: ["QUEUED", "RUNNING"] } },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/**
+ * Creates a queued run for a shop, unless one is already in flight.
+ *
+ * Without this guard, every submit of the scan form created and enqueued
+ * another run: a double-click, an F5 on the POST, or an impatient merchant
+ * would spawn concurrent full-catalogue scans for the same shop, each
+ * paging the Admin GraphQL API against a shared rate-limit bucket and each
+ * writing a full set of AuditItem rows. That is how a throttle storm and a
+ * bloated free-tier database both start.
+ *
+ * Returns the existing run when one is in flight, so the caller can send
+ * the merchant to the scan already running rather than starting a second.
+ */
 export async function createQueuedAuditRun(shop: string) {
+  const existing = await findInFlightAuditRun(shop);
+  if (existing) {
+    logger.info("audit.duplicate_suppressed", { runId: existing.id, shop, status: existing.status });
+    return { run: existing, created: false as const };
+  }
+
   const run = await db.auditRun.create({ data: { shop, status: "QUEUED" } });
   logger.info("audit.queued", { runId: run.id, shop });
-  return run;
+  return { run, created: true as const };
 }
 
 /**

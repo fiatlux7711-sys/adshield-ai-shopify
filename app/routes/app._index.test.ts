@@ -52,7 +52,7 @@ describe("app/_index (dashboard) route", () => {
 
   it("action enqueues a scan for the authenticated shop and redirects immediately", async () => {
     authenticateAdmin.mockResolvedValue({ admin: { graphql: vi.fn() }, session: { shop: "shop-a.myshopify.com" } });
-    createQueuedAuditRun.mockResolvedValue({ id: "run-1" });
+    createQueuedAuditRun.mockResolvedValue({ run: { id: "run-1" }, created: true });
 
     const { action } = await import("./app._index");
     const form = new FormData();
@@ -65,9 +65,26 @@ describe("app/_index (dashboard) route", () => {
     expect((response as Response).headers.get("Location")).toBe("/app/audit/run-1");
   });
 
+  it("does not enqueue a second scan when one is already in flight for the shop", async () => {
+    authenticateAdmin.mockResolvedValue({ admin: { graphql: vi.fn() }, session: { shop: "shop-a.myshopify.com" } });
+    // createQueuedAuditRun reports it returned an existing in-flight run.
+    createQueuedAuditRun.mockResolvedValue({ run: { id: "run-existing" }, created: false });
+
+    const { action } = await import("./app._index");
+    const form = new FormData();
+    form.set("intent", "scan");
+    const response = await action({ request: new Request("https://app.example/app", { method: "POST", body: form }) } as any);
+
+    // No second background job — a double-click must not spawn concurrent
+    // full-catalogue scans against a shared Shopify rate-limit bucket.
+    expect(enqueueAuditRun).not.toHaveBeenCalled();
+    // The merchant is sent to the scan that is already running.
+    expect((response as Response).headers.get("Location")).toBe("/app/audit/run-existing");
+  });
+
   it("action does not perform the scan inline, so the request is never held open", async () => {
     authenticateAdmin.mockResolvedValue({ admin: { graphql: vi.fn() }, session: { shop: "shop-a.myshopify.com" } });
-    createQueuedAuditRun.mockResolvedValue({ id: "run-1" });
+    createQueuedAuditRun.mockResolvedValue({ run: { id: "run-1" }, created: true });
 
     const { action } = await import("./app._index");
     const form = new FormData();

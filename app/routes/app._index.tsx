@@ -31,8 +31,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Enqueue and redirect immediately — the scan itself runs in the background
   // so a large catalog never holds this request open (handoff §16).
-  const run = await createQueuedAuditRun(session.shop);
-  enqueueAuditRun(run.id, session.shop);
+  //
+  // If a scan is already queued or running for this shop, send the merchant
+  // to that one instead of starting a second concurrent full-catalogue scan.
+  const { run, created } = await createQueuedAuditRun(session.shop);
+  if (created) enqueueAuditRun(run.id, session.shop);
   return redirect(`/app/audit/${run.id}`);
 };
 

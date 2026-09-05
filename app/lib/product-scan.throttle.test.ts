@@ -18,6 +18,10 @@ let nextId: number;
 vi.mock("../db.server", () => ({
   default: {
     auditRun: {
+      findFirst: vi.fn(async ({ where }: any) => {
+        const wanted: string[] = where.status.in;
+        return auditRuns.find((r) => r.shop === where.shop && wanted.includes(r.status)) ?? null;
+      }),
       create: vi.fn(async ({ data }: any) => {
         const run = { id: `run-${nextId++}`, ...data, totalItems: 0, processedItems: 0 };
         auditRuns.push(run);
@@ -53,7 +57,7 @@ function okPage(nodes: any[], hasNextPage = false, endCursor: string | null = nu
 
 async function seedRun(shop: string) {
   const { createQueuedAuditRun } = await import("./product-scan.server");
-  return (await createQueuedAuditRun(shop)).id;
+  return (await createQueuedAuditRun(shop)).run.id;
 }
 
 describe("GraphQL throttle handling", () => {
