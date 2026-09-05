@@ -13,7 +13,12 @@ import { chromium } from "playwright";
 import { AxeBuilder } from "@axe-core/playwright";
 
 const baseUrl = process.argv[2] || "http://localhost:3111";
-const PAGES = [{ name: "landing (/)", path: "/" }];
+const PAGES = [
+  { name: "landing (/)", path: "/" },
+  { name: "privacy", path: "/privacy" },
+  { name: "terms", path: "/terms" },
+  { name: "support", path: "/support" },
+];
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 900 },
   { name: "mobile-360", width: 360, height: 740 },
