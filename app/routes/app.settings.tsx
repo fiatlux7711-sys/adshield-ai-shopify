@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
+import { resolveShopifyEnv } from "../env.server";
 
 export const meta: MetaFunction = () => [{ title: "Settings · AdShield AI" }];
 
@@ -11,7 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     aiEnabled: Boolean(process.env.AI_GATEWAY_API_KEY) && process.env.ADSHIELD_AI_ENABLED !== "false",
     model: process.env.ADSHIELD_AI_MODEL || "spacexai/grok-4.6",
     scanLimit: process.env.ADSHIELD_SCAN_LIMIT || "250",
-    scopes: process.env.SCOPES || "read_products",
+    scopes: resolveShopifyEnv().scopes?.join(", ") || "read_products",
   };
 };
 

@@ -37,7 +37,24 @@ const RULES: Rule[] = [
     category: "guarantee_claim",
     title: "Absolute guarantee or certainty claim",
     severity: "HIGH",
-    patterns: [/\b100% (guaranteed|effective|safe|proven)\b/gi, /\bguaranteed results?\b/gi, /\brisk[- ]free\b/gi, /\bworks every time\b/gi],
+    patterns: [
+      /\b100% (guaranteed|effective|safe|proven)\b/gi,
+      /\bguaranteed results?\b/gi,
+      /\brisk[- ]free\b/gi,
+      /\bworks every time\b/gi,
+      // "Guaranteed to erase wrinkles", "guaranteed to make $X" — the verb
+      // form is at least as common as "guaranteed results" and was missed
+      // entirely; found via a real product description, not hypothesized.
+      // Excludes ordinary logistics guarantees ("guaranteed to ship/arrive/
+      // deliver by <date>"), which are a routine, legitimate shipping SLA
+      // rather than an efficacy/outcome claim.
+      /\bguaranteed to (?!ship|deliver|arrive|dispatch|refund|process|respond|reply|return)\w+/gi,
+      /\bproven to work (for everyone|every time)\b/gi,
+      // "guaranteed relief for every customer" — an absolute guarantee paired
+      // with a universal-applicability claim ("for everyone"/"for anyone")
+      // is risky regardless of the specific noun guaranteed.
+      /\bguaranteed \w+ for (everyone|every customer|anyone|all customers)\b/gi,
+    ],
     explanation:
       "Absolute promises can be misleading when material conditions, exclusions, or substantiation are not clear.",
     suggestion:
@@ -118,7 +135,18 @@ const RULES: Rule[] = [
     category: "testimonial_results",
     title: "Results-based testimonial claim",
     severity: "HIGH",
-    patterns: [/\blost \d+ (lbs?|pounds?|kg)\b/gi, /\bmade \$?\d+[\d,]* in \d+ (days?|weeks?|months?)\b/gi, /\bbefore and after\b/gi],
+    patterns: [
+      /\blost \d+ (lbs?|pounds?|kg)\b/gi,
+      /\bmade \$?\d+[\d,]* in \d+ (days?|weeks?|months?)\b/gi,
+      /\bbefore and after\b/gi,
+      // "My pain disappeared completely in 24 hours and never came back" —
+      // a dramatic, fast, permanent-recovery narrative in quoted/first-person
+      // testimonial style. Anchored on a same-day timeframe (hours/minutes)
+      // so it doesn't fire on an ordinary "cleared up within a few weeks"
+      // product claim, which belongs to health_claim, not a testimonial gate.
+      /\b(disappeared|vanished|cleared up|gone)\b[^.!?]{0,40}\bin \d+ (hours?|minutes?)\b/gi,
+      /\bnever came back\b/gi,
+    ],
     explanation:
       "Testimonials that communicate atypical performance can imply that consumers should expect the same result.",
     suggestion:

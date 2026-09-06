@@ -5,16 +5,23 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { createQueuedAuditRun } from "../lib/product-scan.server";
 import { enqueueAuditRun } from "../lib/audit-queue.server";
+import { logger } from "../lib/logger.server";
 
 export const meta: MetaFunction = () => [{ title: "Dashboard · AdShield AI" }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  await db.shopInstallation.upsert({
-    where: { shop: session.shop },
-    update: {},
-    create: { shop: session.shop },
-  });
+  try {
+    const installation = await db.shopInstallation.upsert({
+      where: { shop: session.shop },
+      update: {},
+      create: { shop: session.shop },
+    });
+    logger.info("installation.persisted", { shop: session.shop, createdAt: installation.createdAt });
+  } catch (error) {
+    logger.error("installation.persist_failed", { shop: session.shop, error });
+    throw error;
+  }
 
   const recent = await db.auditRun.findMany({
     where: { shop: session.shop },

@@ -4,10 +4,25 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import { resolveShopifyEnv } from "../env.server";
+import { logger } from "../lib/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  const url = new URL(request.url);
+  try {
+    const { session } = await authenticate.admin(request);
+    logger.info("app.auth_ok", { shop: session.shop });
+    return { apiKey: resolveShopifyEnv().apiKey || "" };
+  } catch (error) {
+    if (error instanceof Response) {
+      // The library redirects (e.g. to re-run token exchange) as part of its
+      // normal flow — that is not an authentication failure.
+      logger.info("app.auth_redirect", { path: url.pathname, status: error.status });
+      throw error;
+    }
+    logger.error("app.auth_failed", { path: url.pathname, error });
+    throw error;
+  }
 };
 
 export default function App() {

@@ -75,6 +75,47 @@ describe("auditText — controlled acceptance-test claims", () => {
   });
 });
 
+describe("auditText — guarantee_claim gaps found via live dev-store fixtures", () => {
+  it("flags the verb form 'guaranteed to <verb>', not just 'guaranteed results'", () => {
+    const result = auditText("Guaranteed to erase wrinkles in just one week.");
+    expect(result.issues.some((i) => i.category === "guarantee_claim")).toBe(true);
+  });
+
+  it("flags a universal-applicability guarantee ('for everyone')", () => {
+    const result = auditText("Guaranteed relief for every customer, no exceptions.");
+    expect(result.issues.some((i) => i.category === "guarantee_claim")).toBe(true);
+  });
+
+  it("flags 'proven to work for everyone'", () => {
+    const result = auditText("This routine is proven to work for everyone who tries it.");
+    expect(result.issues.some((i) => i.category === "guarantee_claim")).toBe(true);
+  });
+
+  it("does not flag an ordinary shipping-guarantee phrase", () => {
+    const result = auditText("Guaranteed to ship within 2 business days.");
+    expect(result.issues.some((i) => i.category === "guarantee_claim")).toBe(false);
+  });
+});
+
+describe("auditText — testimonial_results gaps found via live dev-store fixtures", () => {
+  it("flags a same-day dramatic-recovery testimonial narrative", () => {
+    const result = auditText(
+      "My pain disappeared completely in 24 hours and never came back.",
+    );
+    expect(result.issues.some((i) => i.category === "testimonial_results")).toBe(true);
+  });
+
+  it("flags 'never came back' on its own as a results claim", () => {
+    const result = auditText("The rash cleared up and never came back.");
+    expect(result.issues.some((i) => i.category === "testimonial_results")).toBe(true);
+  });
+
+  it("does not flag an ordinary multi-week recovery timeline", () => {
+    const result = auditText("Symptoms typically cleared up within a few weeks for most users.");
+    expect(result.issues.some((i) => i.category === "testimonial_results")).toBe(false);
+  });
+});
+
 describe("scoreIssues / severity scoring", () => {
   const issue = (severity: ComplianceIssue["severity"], evidence = "x"): ComplianceIssue => ({
     category: "test",

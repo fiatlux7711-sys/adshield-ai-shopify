@@ -4,10 +4,11 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Form, useActionData, useLoaderData } from "react-router";
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
+import { resolveShopifyEnv } from "../../env.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => ({
   errors: loginErrorMessage(await login(request)),
-  apiKey: process.env.SHOPIFY_API_KEY || "",
+  apiKey: resolveShopifyEnv().apiKey || "",
 });
 export const action = async ({ request }: ActionFunctionArgs) => ({
   errors: loginErrorMessage(await login(request)),

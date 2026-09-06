@@ -50,6 +50,15 @@ describe("app/_index (dashboard) route", () => {
     expect(dbMock.shopInstallation.upsert).not.toHaveBeenCalled();
   });
 
+  it("does not silently swallow a failed installation upsert — it rethrows so the failure is visible", async () => {
+    authenticateAdmin.mockResolvedValue({ session: { shop: "shop-a.myshopify.com" } });
+    const dbError = new Error("connection terminated unexpectedly");
+    dbMock.shopInstallation.upsert.mockRejectedValueOnce(dbError);
+    const { loader } = await import("./app._index");
+
+    await expect(loader({ request: new Request("https://app.example/app") } as any)).rejects.toBe(dbError);
+  });
+
   it("action enqueues a scan for the authenticated shop and redirects immediately", async () => {
     authenticateAdmin.mockResolvedValue({ admin: { graphql: vi.fn() }, session: { shop: "shop-a.myshopify.com" } });
     createQueuedAuditRun.mockResolvedValue({ run: { id: "run-1" }, created: true });
