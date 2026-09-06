@@ -7,7 +7,11 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
-import { configureAuditQueue } from "./lib/audit-queue.server";
+import {
+  configureAuditQueue,
+  recoverInterruptedRuns,
+} from "./lib/audit-queue.server";
+import { logger } from "./lib/logger.server";
 import { resolveShopifyEnv } from "./env.server";
 
 const env = resolveShopifyEnv();
@@ -33,6 +37,13 @@ const shopify = shopifyApp({
 configureAuditQueue(async (shop: string) => {
   const { admin } = await shopify.unauthenticated.admin(shop);
   return admin;
+});
+
+// Render restarts discard the in-process queue. Reconcile any persisted jobs
+// that no longer have a worker behind them so merchants can retry instead of
+// seeing an audit page poll forever.
+void recoverInterruptedRuns().catch((error) => {
+  logger.error("queue.recovery_failed", { error });
 });
 
 export default shopify;
