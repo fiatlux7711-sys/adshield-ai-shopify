@@ -50,6 +50,31 @@ describe("app/ layout route loader (the route that returned 401 in the reported 
     expect(events.some((e) => e.level === "error")).toBe(false);
   });
 
+  it("logs a 401 Response thrown by authenticate.admin as a real failure, not a redirect, capturing the reauthorize URL and whether a bearer token was sent", async () => {
+    const reauthUrl = "https://cqdijz-9s.myshopify.com/admin/oauth/authorize?client_id=abc";
+    const unauthorized = new Response("Unauthorized", {
+      status: 401,
+      headers: { "X-Shopify-API-Request-Failure-Reauthorize-Url": reauthUrl },
+    });
+    authenticateAdmin.mockRejectedValue(unauthorized);
+    const { loader } = await import("./app");
+
+    await expect(
+      loader({
+        request: new Request("https://app.example/app", { headers: { "sec-fetch-dest": "document" } }),
+      } as any),
+    ).rejects.toBe(unauthorized);
+
+    const events = out.map((l) => JSON.parse(l));
+    const failure = events.find((e) => e.event === "app.auth_failed");
+    expect(failure).toBeDefined();
+    expect(failure.level).toBe("error");
+    expect(failure.status).toBe(401);
+    expect(failure.hasAuthorizationHeader).toBe(false);
+    expect(failure.reauthorizeUrl).toBe(reauthUrl);
+    expect(events.some((e) => e.event === "app.auth_redirect")).toBe(false);
+  });
+
   it("logs a session-token verification failure (the exact reported symptom) at error level without leaking the token", async () => {
     const err = new Error("Invalid session token signature");
     authenticateAdmin.mockRejectedValue(err);

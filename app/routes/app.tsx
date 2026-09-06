@@ -15,9 +15,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return { apiKey: resolveShopifyEnv().apiKey || "" };
   } catch (error) {
     if (error instanceof Response) {
-      // The library redirects (e.g. to re-run token exchange) as part of its
-      // normal flow — that is not an authentication failure.
-      logger.info("app.auth_redirect", { path: url.pathname, status: error.status });
+      // A 3xx is the library's normal way of driving the OAuth/token-exchange
+      // flow — not a failure. A 401/403 is a real authentication failure and
+      // must be logged as such, with enough non-secret context (never the
+      // token/header values themselves) to diagnose why: whether the request
+      // carried a bearer session token at all, and the reauthorize URL the
+      // library computed, which is the concrete next step it expected.
+      if (error.status >= 400) {
+        logger.error("app.auth_failed", {
+          path: url.pathname,
+          status: error.status,
+          hasAuthorizationHeader: request.headers.has("authorization"),
+          secFetchDest: request.headers.get("sec-fetch-dest"),
+          reauthorizeUrl: error.headers.get("X-Shopify-API-Request-Failure-Reauthorize-Url"),
+        });
+      } else {
+        logger.info("app.auth_redirect", { path: url.pathname, status: error.status });
+      }
       throw error;
     }
     logger.error("app.auth_failed", { path: url.pathname, error });
